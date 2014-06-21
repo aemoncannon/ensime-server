@@ -2270,12 +2270,20 @@ any buffer visiting the given file."
 (defun ensime-find-file-from-pos (pos other-window-p)
   (let* ((archive (ensime-pos-archive pos))
          (entry (ensime-pos-file pos))
-         (effective-file (ensime-pos-effective-file pos)))
+         (effective-file (ensime-pos-effective-file pos))
+         (existing-buffer (get-file-buffer effective-file)))
     (when archive
-      (with-temp-buffer
-        (archive-zip-extract archive entry)
-        (make-directory (file-name-directory effective-file) t)
-        (write-file effective-file)))
+      (if existing-buffer
+          (block nil
+            (if other-window-p
+                (switch-to-buffer-other-window existing-buffer)
+              (switch-to-buffer existing-buffer))
+            (return))
+        (with-temp-buffer
+          (archive-zip-extract archive entry)
+          (make-directory (file-name-directory effective-file) t)
+          (let ((backup-inhibited t))
+            (write-file effective-file)))))
 
     (if other-window-p
         (find-file-other-window effective-file)
@@ -2283,7 +2291,6 @@ any buffer visiting the given file."
 
     (when (ensime-file-in-directory-p effective-file (ensime-source-jars-dir))
       (with-current-buffer (get-file-buffer effective-file)
-	(auto-revert-mode t)
         (setq buffer-read-only t)))))
 
 ;; Compilation result interface
