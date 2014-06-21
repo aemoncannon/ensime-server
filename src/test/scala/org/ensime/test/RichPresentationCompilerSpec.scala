@@ -13,8 +13,7 @@ class RichPresentationCompilerSpec extends FunSpec with ShouldMatchers {
 
   describe("RichPresentationCompiler") {
 
-    // https://github.com/ensime/ensime-src/issues/400
-    ignore("can call askTypeInfoByName on a class") {
+    it("can call askTypeInfoByName on a class") {
       Helpers.withPresCompiler { cc =>
         val file = Helpers.srcFile("abc.scala", Helpers.contents(
           "package com.example",
@@ -28,7 +27,7 @@ class RichPresentationCompilerSpec extends FunSpec with ShouldMatchers {
       }
     }
 
-    ignore("can call askTypeInfoByName on an object") {
+    it("can call askTypeInfoByName on an object") {
       Helpers.withPresCompiler  { cc =>
         val file = Helpers.srcFile("abc.scala", Helpers.contents(
           "package com.example",
