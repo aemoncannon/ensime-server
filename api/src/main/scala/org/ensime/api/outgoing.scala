@@ -1,6 +1,7 @@
 package org.ensime.api
 
 import java.io.File
+import java.nio.charset.Charset
 
 /**
  * There should be exactly one `RpcResponseEnvelope` in response to an
@@ -67,6 +68,9 @@ case object CompilerRestartedEvent extends GeneralSwankEvent
 /** The presentation compiler has invalidated all existing notes.  */
 case object ClearAllScalaNotesEvent extends GeneralSwankEvent
 
+/** The presentation compiler has invalidated all existing notes.  */
+case object ClearAllJavaNotesEvent extends GeneralSwankEvent
+
 case class Note(
   file: String,
   msg: String,
@@ -79,6 +83,12 @@ case class Note(
 
 /** The presentation compiler is providing notes: e.g. errors, warnings. */
 case class NewScalaNotesEvent(
+  isFull: Boolean,
+  notes: List[Note]
+) extends GeneralSwankEvent
+
+/** The presentation compiler is providing notes: e.g. errors, warnings. */
+case class NewJavaNotesEvent(
   isFull: Boolean,
   notes: List[Note]
 ) extends GeneralSwankEvent
@@ -177,6 +187,8 @@ case class SourceFileInfo(
 ) {
   // keep the log file sane for unsaved files
   override def toString = s"SourceFileInfo($file,${contents.map(_ => "...")},$contentsIn)"
+  def isJava = file.getName().endsWith(".java")
+  def isScala = file.getName().endsWith(".scala")
 }
 
 sealed trait PatchOp {

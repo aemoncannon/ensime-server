@@ -195,6 +195,8 @@ object SwankProtocolResponse {
   implicit val CompilerRestartedHint = TypeHint[CompilerRestartedEvent.type](SexpSymbol(":compiler-restarted"))
   implicit val NewScalaNotesHint = TypeHint[NewScalaNotesEvent](SexpSymbol(":scala-notes"))
   implicit val ClearAllScalaNotesHint = TypeHint[ClearAllScalaNotesEvent.type](SexpSymbol(":clear-all-scala-notes"))
+  implicit val NewJavaNotesHint = TypeHint[NewJavaNotesEvent](SexpSymbol(":java-notes"))
+  implicit val ClearAllJavaNotesHint = TypeHint[ClearAllJavaNotesEvent.type](SexpSymbol(":clear-all-java-notes"))
   implicit val SendBackgroundMessageHint = TypeHint[SendBackgroundMessageEvent](SexpSymbol(":background-message"))
   implicit val DebugHint = TypeHint[DebugEvent](SexpSymbol(":debug-event"))
   implicit val NamedTypeMemberHint = TypeHint[NamedTypeMemberInfo](SexpSymbol("named"))
@@ -307,6 +309,7 @@ object SwankProtocolResponse {
   // must be defined after NoteSeverity
   implicit val NoteFormat = SexpFormat[Note]
   implicit val NewScalaNotesEventFormat = SexpFormat[NewScalaNotesEvent]
+  implicit val NewJavaNotesEventFormat = SexpFormat[NewJavaNotesEvent]
 
   implicit object DebugEventFormat extends TraitFormatAlt[DebugEvent] {
     def write(ee: DebugEvent): Sexp = ee match {
@@ -345,6 +348,8 @@ object SwankProtocolResponse {
       case e: CompilerRestartedEvent.type => wrap(e)
       case nsc: NewScalaNotesEvent => wrap(nsc)
       case e: ClearAllScalaNotesEvent.type => wrap(e)
+      case njc: NewJavaNotesEvent => wrap(njc)
+      case e: ClearAllJavaNotesEvent.type => wrap(e)
       case sbm: SendBackgroundMessageEvent => SexpList(
         // the odd one out...
         SendBackgroundMessageHint.hint,
@@ -360,6 +365,8 @@ object SwankProtocolResponse {
       case s if s == CompilerRestartedHint.hint => CompilerRestartedEvent
       case s if s == NewScalaNotesHint.hint => value.convertTo[NewScalaNotesEvent]
       case s if s == ClearAllScalaNotesHint.hint => ClearAllScalaNotesEvent
+      case s if s == NewJavaNotesHint.hint => value.convertTo[NewJavaNotesEvent]
+      case s if s == ClearAllJavaNotesHint.hint => ClearAllJavaNotesEvent
       case s if s == SendBackgroundMessageHint.hint => ??? // unsupported
       case s if s == DebugHint.hint => value.convertTo[DebugEvent]
       case _ => deserializationError(hint)

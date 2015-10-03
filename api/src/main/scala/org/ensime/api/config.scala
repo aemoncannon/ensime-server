@@ -25,6 +25,8 @@ case class EnsimeConfig(
   def root = rootDir
   def debugVMArgs = debugArgs
   def referenceSourceJars = referenceSourceRoots
+  def disableSourceMonitoring = true
+  def disableClassMonitoring = true
 
   // some marshalling libs (e.g. spray-json) might not like extra vals
   val modules = subprojects.map { module => (module.name, module) }.toMap

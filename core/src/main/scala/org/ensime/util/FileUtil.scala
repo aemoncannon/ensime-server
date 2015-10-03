@@ -33,7 +33,11 @@ object RichFileObject {
 object FileUtils {
 
   def isScalaSourceFile(f: File): Boolean = {
-    f.exists && f.getName.endsWith(".scala")
+    f.getName.endsWith(".scala")
+  }
+
+  def isJava(f: File): Boolean = {
+    f.getName.endsWith(".java")
   }
 
   def readFile(f: File, cs: Charset): Either[IOException, String] = try {

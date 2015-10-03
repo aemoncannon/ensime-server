@@ -34,10 +34,7 @@ trait CompletionControl {
     constructing: Boolean
   ) extends CompletionContext
 
-  private val IdentRegexp = """([a-zA-Z0-9_#:<=>@!%&*+/?\\^|~-]*)$""".r
-  private val ImportTopLevelRegexp = """import [^\.]*$""".r
-  private val ConstructingRegexp = """new [\.a-zA-Z0-9_]*$""".r
-  private val TypeNameRegex = """^[A-Z][a-zA-Z0-9]*$""".r
+  import CompletionUtil._
 
   def completionsAt(inputP: Position, maxResultsArg: Int, caseSens: Boolean): CompletionInfoList = {
     val maxResults = if (maxResultsArg == 0) Int.MaxValue else maxResultsArg
@@ -209,7 +206,10 @@ trait CompletionControl {
     // Any interaction with the members (their types and symbols) must be done
     // on the compiler thread.
     askOption[Unit] {
-      val filtered = filterMembersByPrefix(members, context.prefix, matchEntire = false, caseSens = caseSens)
+      val filtered = members.filter { m =>
+        val s = m.sym.nameString
+        matchesPrefix(s, context.prefix, matchEntire = false, caseSens = caseSens) && !s.contains("$")
+      }
       logger.info("Filtered down to " + filtered.size + ".")
       for (m <- filtered) {
         m match {
@@ -307,6 +307,26 @@ trait Completion { self: RichPresentationCompiler =>
         }.toList.sortBy(ci => (ci.relevance, ci.name))
       case _ => List.empty
     }
+  }
+
+}
+
+object CompletionUtil {
+
+  val IdentRegexp = """([a-zA-Z0-9_#:<=>@!%&*+/?\\^|~-]*)\z""".r
+  val JavaIdentRegexp = """([a-zA-Z0-9_]*)\z""".r
+  val ImportTopLevelRegexp = """import [^\.]*\z""".r
+  val ImportRegexp = """import [a-zA-Z0-9_\.]*\z""".r
+  val ImportSubtypeRegexp = """import [a-z0-9_\.]*[A-Z][a-zA-Z0-9_]*\.[a-zA-Z0-9_\.]*\z""".r
+  val ConstructingRegexp = """new [\.a-zA-Z0-9_]*\z""".r
+  val TypeNameRegex = """^[A-Z][a-zA-Z0-9]*\z""".r
+
+  def matchesPrefix(m: String, prefix: String,
+    matchEntire: Boolean, caseSens: Boolean): Boolean = {
+    val prefixUpper = prefix.toUpperCase
+    ((matchEntire && m == prefix) ||
+      (!matchEntire && caseSens && m.startsWith(prefix)) ||
+      (!matchEntire && !caseSens && m.toUpperCase.startsWith(prefixUpper)))
   }
 
 }

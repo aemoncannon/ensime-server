@@ -114,18 +114,20 @@ class ClassfileWatcher(
 
     val root = vfs.vfile(config.root)
 
-    // must remove then add to avoid leaks
-    for {
-      d <- config.targetClasspath
-      dir = vfs.vfile(d)
-      _ = fm.removeFile(dir)
-      _ = fm.addFile(dir)
-      ancestor <- ancestors(dir)
-      if ancestor.getName isAncestor root.getName
-      _ = workaround.removeFile(ancestor)
-      _ = workaround.addFile(ancestor)
-    } {
-      // side effects in the for comprehension
+    if (!config.disableClassMonitoring) {
+      // must remove then add to avoid leaks
+      for {
+        d <- config.targetClasspath
+        dir = vfs.vfile(d)
+        _ = fm.removeFile(dir)
+        _ = fm.addFile(dir)
+        ancestor <- ancestors(dir)
+        if ancestor.getName isAncestor root.getName
+        _ = workaround.removeFile(ancestor)
+        _ = workaround.addFile(ancestor)
+      } {
+        // side effects in the for comprehension
+      }
     }
 
     workaround.removeFile(root)
@@ -165,8 +167,10 @@ class SourceWatcher(
   fm.setRecursive(true)
   fm.start()
 
-  config.modules.values.foreach { m =>
-    m.sourceRoots foreach { r => fm.addFile(vfs.vfile(r)) }
+  if (!config.disableSourceMonitoring) {
+    config.modules.values.foreach { m =>
+      m.sourceRoots foreach { r => fm.addFile(vfs.vfile(r)) }
+    }
   }
 
   def shutdown(): Unit = {

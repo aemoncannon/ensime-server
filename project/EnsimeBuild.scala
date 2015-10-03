@@ -58,6 +58,7 @@ object EnsimeBuild extends Build with JdkResolver {
 
   lazy val commonSettings = scalariformSettings ++ basicSettings ++ Seq(
     //resolvers += Resolver.sonatypeRepo("snapshots"),
+    resolvers += "Spring IO" at "http://repo.spring.io/libs-release-remote",
     scalacOptions in Compile ++= Seq(
       // uncomment to debug implicit resolution compilation problems
       //"-Xlog-implicits",
@@ -258,6 +259,8 @@ object EnsimeBuild extends Build with JdkResolver {
   ).settings(
     libraryDependencies ++= Seq(
       "com.h2database" % "h2" % "1.4.189",
+      "org.netbeans.api" % "org-netbeans-api-java" % "RELEASE80",
+      "org.netbeans.api" % "org-netbeans-modules-java-source" % "RELEASE80",
       "com.typesafe.slick" %% "slick" % "2.1.0",
       "com.jolbox" % "bonecp" % "0.8.0.RELEASE", // TODO: upgrade to https://github.com/brettwooldridge/HikariCP
       "org.apache.commons" % "commons-vfs2" % "2.0" intransitive(),

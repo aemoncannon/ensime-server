@@ -9,9 +9,11 @@ import org.ensime.api._
 import org.ensime.core.PositionBackCompat
 
 trait ReportHandler {
-  def messageUser(str: String): Unit
-  def clearAllScalaNotes(): Unit
-  def reportScalaNotes(notes: List[Note]): Unit
+  def messageUser(str: String): Unit = {}
+  def clearAllScalaNotes(): Unit = {}
+  def reportScalaNotes(notes: List[Note]): Unit = {}
+  def clearAllJavaNotes(): Unit = {}
+  def reportJavaNotes(notes: List[Note]): Unit = {}
 }
 
 class PresentationReporter(handler: ReportHandler) extends Reporter with PositionBackCompat {

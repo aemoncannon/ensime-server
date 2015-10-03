@@ -53,10 +53,10 @@ trait RefactoringHandler { self: Analyzer =>
 
   private var effects = Map.empty[Int, RefactorEffect]
 
-  def handleRefactorPrepareRequest(req: PrepareRefactorReq): RpcResponse = {
+  def handleRefactorPrepareRequest(cc: RichCompilerControl, req: PrepareRefactorReq): RpcResponse = {
     val procedureId = req.procId
     val refactor = req.params
-    val result = scalaCompiler.askPrepareRefactor(procedureId, refactor)
+    val result = cc.askPrepareRefactor(procedureId, refactor)
 
     result match {
       case Right(effect: RefactorEffect) =>
@@ -68,11 +68,11 @@ trait RefactoringHandler { self: Analyzer =>
     }
   }
 
-  def handleRefactorExec(req: ExecRefactorReq): RpcResponse = {
+  def handleRefactorExec(cc: RichCompilerControl, req: ExecRefactorReq): RpcResponse = {
     val procedureId = req.procId
     effects.get(procedureId) match {
       case Some(effect: RefactorEffect) =>
-        scalaCompiler.askExecRefactor(procedureId, req.tpe, effect) match {
+        cc.askExecRefactor(procedureId, req.tpe, effect) match {
           case Right(success) => success
           case Left(failure) => failure
         }
@@ -99,7 +99,7 @@ trait RefactoringHandler { self: Analyzer =>
     }
   }
 
-  def handleFormatFiles(files: List[File]): Unit = {
+  def handleFormatFiles(cc: RichCompilerControl, files: List[File]): Unit = {
     val cs = charset
     val changeList = files.map { f =>
       FileUtils.readFile(f, cs) match {
@@ -112,8 +112,8 @@ trait RefactoringHandler { self: Analyzer =>
     FileUtils.writeChanges(changeList, cs)
   }
 
-  def handleFormatFile(fileInfo: SourceFileInfo): String = {
-    val sourceFile = createSourceFile(fileInfo)
+  def handleFormatFile(cc: RichCompilerControl, fileInfo: SourceFileInfo): String = {
+    val sourceFile = createSourceFile(cc, fileInfo)
     val contents = sourceFile.content.mkString
     ScalaFormatter.format(contents, config.formattingPrefs)
   }

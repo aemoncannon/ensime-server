@@ -192,6 +192,8 @@ class BasicWorkflow extends WordSpec with Matchers
                 BasicTypeInfo("CaseClassWithCamelCaseName$", _: Int, DeclaredAs.Object, "org.example.CaseClassWithCamelCaseName$", List(), List(), Some(_), None),
                 BasicTypeInfo("Foo", _: Int, DeclaredAs.Class, "org.example.Foo", List(), List(), Some(_), None),
                 BasicTypeInfo("Foo$", _: Int, DeclaredAs.Object, "org.example.Foo$", List(), List(), Some(_), None),
+                BasicTypeInfo("Test1", _: Int, DeclaredAs.Class, "org.example.Test1", List(), List(), None, None),
+                BasicTypeInfo("Test1$", _: Int, DeclaredAs.Object, "org.example.Test1$", List(), List(), None, None),
                 BasicTypeInfo("package$", _: Int, DeclaredAs.Object, "org.example.package$", List(), List(), None, None),
                 BasicTypeInfo("package$", _: Int, DeclaredAs.Object, "org.example.package$", List(), List(), None, None)))) =>
             }

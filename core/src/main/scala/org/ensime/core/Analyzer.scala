@@ -2,10 +2,13 @@ package org.ensime.core
 
 import java.io.{ File => JFile }
 import java.nio.charset.Charset
+import java.nio.charset.StandardCharsets
 
 import akka.actor._
 import akka.event.LoggingReceive.withLabel
+import akka.pattern.pipe
 import org.ensime.api._
+import org.ensime.core.javac.JavaCompiler
 import org.ensime.indexer.{ EnsimeVFS, SearchService }
 import org.ensime.model._
 import org.ensime.util.{ PresentationReporter, ReportHandler, FileUtils }
@@ -51,7 +54,9 @@ class Analyzer(
   private var settings: Settings = _
   private var reporter: PresentationReporter = _
 
-  protected var scalaCompiler: RichCompilerControl = _
+  protected var scalaCompiler: Option[RichCompilerControl] = _
+
+  protected var javaCompiler: JavaCompiler = _
 
   override def preStart(): Unit = {
     val presCompLog = LoggerFactory.getLogger(classOf[Global])
@@ -83,35 +88,73 @@ class Analyzer(
     reporter.disable() // until we start up
 
     scalaCompiler = makeScalaCompiler()
+    javaCompiler = new JavaCompiler(
+      config,
+      Charset.forName(settings.encoding.value),
+      indexer,
+      new ReportHandler {
+        override def messageUser(str: String): Unit = {
+          broadcaster ! SendBackgroundMessageEvent(str, 101)
+        }
+        override def clearAllJavaNotes(): Unit = {
+          broadcaster ! ClearAllJavaNotesEvent
+        }
+        override def reportJavaNotes(notes: List[Note]): Unit = {
+          broadcaster ! NewJavaNotesEvent(isFull = false, notes)
+        }
+      }
+    )
 
     broadcaster ! SendBackgroundMessageEvent("Initializing Analyzer. Please wait...")
 
-    scalaCompiler.askNotifyWhenReady()
-    if (config.sourceMode) scalaCompiler.askReloadAllFiles()
+    scalaCompiler match {
+      case Some(cc) => {
+        cc.askNotifyWhenReady()
+        if (config.sourceMode) cc.askReloadAllFiles()
+      }
+      case _ => self ! FullTypeCheckCompleteEvent
+    }
   }
 
-  protected def makeScalaCompiler() = new RichPresentationCompiler(
-    config, settings, reporter, self, indexer, search
-  )
+  protected def makeScalaCompiler() = {
+    try {
+      Some(new RichPresentationCompiler(
+        config, settings, reporter, self, indexer, search
+      ))
+    } catch {
+      case e: Exception => {
+        log.warning("Failed to start the scala compiler", e)
+        None
+      }
+    }
+  }
 
   protected def restartCompiler(keepLoaded: Boolean): Unit = {
     log.warning("Restarting the Presentation Compiler")
-    val files = scalaCompiler.loadedFiles
-    scalaCompiler.askShutdown()
-    scalaCompiler = makeScalaCompiler()
-    if (keepLoaded) {
-      scalaCompiler.askReloadFiles(files)
+    val files = scalaCompiler.map(_.loadedFiles)
+    for (cc <- scalaCompiler) {
+      cc.askShutdown()
     }
-    scalaCompiler.askNotifyWhenReady()
+    scalaCompiler = makeScalaCompiler()
+    for (cc <- scalaCompiler) {
+      if (keepLoaded) {
+        for (fs <- files) {
+          cc.askReloadFiles(fs)
+        }
+      }
+      cc.askNotifyWhenReady()
+    }
     broadcaster ! CompilerRestartedEvent
   }
 
   override def postStop(): Unit = {
-    Try(scalaCompiler.askClearTypeCache())
-    Try(scalaCompiler.askShutdown())
+    for (cc <- scalaCompiler) {
+      Try(cc.askClearTypeCache())
+      Try(cc.askShutdown())
+    }
   }
 
-  def charset: Charset = scalaCompiler.charset
+  def charset: Charset = scalaCompiler.map(_.charset).getOrElse(StandardCharsets.UTF_8)
 
   def receive: Receive = startup
 
@@ -149,20 +192,26 @@ class Analyzer(
       allTheThings(req)
   }
 
+  import context.dispatcher
+
   def allTheThings: PartialFunction[RpcAnalyserRequest, Unit] = {
     case RemoveFileReq(file: File) =>
-      scalaCompiler.askRemoveDeleted(file)
+      for (cc <- scalaCompiler) {
+        cc.askRemoveDeleted(file)
+      }
       sender ! VoidResponse
     case TypecheckAllReq =>
       allFilesMode = true
-      scalaCompiler.askRemoveAllDeleted()
-      scalaCompiler.askReloadAllFiles()
-      scalaCompiler.askNotifyWhenReady()
+      for (cc <- scalaCompiler) {
+        cc.askRemoveAllDeleted()
+        cc.askReloadAllFiles()
+        cc.askNotifyWhenReady()
+      }
       sender ! VoidResponse
     case UnloadAllReq =>
       if (config.sourceMode) {
         log.info("in source mode, will reload all files")
-        scalaCompiler.askRemoveAllDeleted()
+        for (cc <- scalaCompiler) cc.askRemoveAllDeleted()
         restartCompiler(keepLoaded = true)
       } else {
         allFilesMode = false
@@ -174,90 +223,130 @@ class Analyzer(
     case TypecheckFilesReq(files) =>
       sender ! handleReloadFiles(files.map(SourceFileInfo(_)))
     case req: PrepareRefactorReq =>
-      sender ! handleRefactorPrepareRequest(req)
+
+      sender ! scalaCompiler.map(handleRefactorPrepareRequest(_, req)).getOrElse(VoidResponse)
     case req: ExecRefactorReq =>
-      sender ! handleRefactorExec(req)
+      sender ! scalaCompiler.map(handleRefactorExec(_, req)).getOrElse(VoidResponse)
     case req: CancelRefactorReq =>
       sender ! handleRefactorCancel(req)
+    case CompletionsReq(fileInfo, point, maxResults, caseSens, reload) if fileInfo.isJava =>
+      javaCompiler.askCompletionsAtPoint(fileInfo, point, maxResults, caseSens) pipeTo sender
     case CompletionsReq(fileInfo, point, maxResults, caseSens, reload) =>
-      val sourcefile = createSourceFile(fileInfo)
-      reporter.disable()
-      val p = new OffsetPosition(sourcefile, point)
-      val info = scalaCompiler.askCompletionsAt(p, maxResults, caseSens)
-      sender ! info
+      sender ! (scalaCompiler.map { cc =>
+        val sourcefile = createSourceFile(cc, fileInfo)
+        reporter.disable()
+        val p = new OffsetPosition(sourcefile, point)
+        cc.askCompletionsAt(p, maxResults, caseSens)
+      }).getOrElse(VoidResponse)
     case UsesOfSymbolAtPointReq(file, point) =>
-      val p = pos(file, point)
-      scalaCompiler.askLoadedTyped(p.source)
-      val uses = scalaCompiler.askUsesOfSymAtPoint(p)
-      sender ! ERangePositions(uses.map(ERangePositionHelper.fromRangePosition))
+      sender ! (scalaCompiler.map { cc =>
+        val p = pos(cc, file, point)
+        cc.askLoadedTyped(p.source)
+        val uses = cc.askUsesOfSymAtPoint(p)
+        ERangePositions(uses.map(ERangePositionHelper.fromRangePosition))
+      }).getOrElse(VoidResponse)
     case PackageMemberCompletionReq(path: String, prefix: String) =>
-      val members = scalaCompiler.askCompletePackageMember(path, prefix)
-      sender ! members
+      sender ! (scalaCompiler.map { cc =>
+        val members = cc.askCompletePackageMember(path, prefix)
+        members
+      }).getOrElse(VoidResponse)
     case InspectTypeAtPointReq(file: File, range: OffsetRange) =>
-      val p = pos(file, range)
-      scalaCompiler.askLoadedTyped(p.source)
-      sender ! scalaCompiler.askInspectTypeAt(p)
+      sender ! (scalaCompiler.map { cc =>
+        val p = pos(cc, file, range)
+        cc.askLoadedTyped(p.source)
+        cc.askInspectTypeAt(p)
+      }).getOrElse(VoidResponse)
     case InspectTypeByIdReq(id: Int) =>
-      sender ! scalaCompiler.askInspectTypeById(id)
+      sender ! (scalaCompiler.map { cc =>
+        cc.askInspectTypeById(id)
+      }).getOrElse(VoidResponse)
     case InspectTypeByNameReq(name: String) =>
-      sender ! scalaCompiler.askInspectTypeByName(name)
+      sender ! (scalaCompiler.map { cc =>
+        cc.askInspectTypeByName(name)
+      }).getOrElse(VoidResponse)
     case SymbolAtPointReq(file: File, point: Int) =>
-      val p = pos(file, point)
-      scalaCompiler.askLoadedTyped(p.source)
-      sender ! scalaCompiler.askSymbolInfoAt(p)
+      sender ! (scalaCompiler.map { cc =>
+        val p = pos(cc, file, point)
+        cc.askLoadedTyped(p.source)
+        cc.askSymbolInfoAt(p)
+      }).getOrElse(VoidResponse)
     case SymbolByNameReq(typeFullName: String, memberName: Option[String], signatureString: Option[String]) =>
-      sender ! scalaCompiler.askSymbolByName(typeFullName, memberName, signatureString)
+      sender ! (scalaCompiler.map { cc =>
+        cc.askSymbolByName(typeFullName, memberName, signatureString)
+      }).getOrElse(VoidResponse)
+    case DocUriAtPointReq(file: File, range: OffsetRange) if FileUtils.isJava(file) =>
+      javaCompiler.askDocSignatureAtPoint(SourceFileInfo(file, None, None), range.from) pipeTo sender
     case DocUriAtPointReq(file: File, range: OffsetRange) =>
-      val p = pos(file, range)
-      scalaCompiler.askLoadedTyped(p.source)
-      sender() ! scalaCompiler.askDocSignatureAtPoint(p)
+      sender ! (scalaCompiler.map { cc =>
+        val p = pos(cc, file, range)
+        cc.askLoadedTyped(p.source)
+        cc.askDocSignatureAtPoint(p)
+      }).getOrElse(VoidResponse)
     case DocUriForSymbolReq(typeFullName: String, memberName: Option[String], signatureString: Option[String]) =>
-      sender() ! scalaCompiler.askDocSignatureForSymbol(typeFullName, memberName, signatureString)
+      sender ! (scalaCompiler.map { cc =>
+        cc.askDocSignatureForSymbol(typeFullName, memberName, signatureString)
+      }).getOrElse(VoidResponse)
     case InspectPackageByPathReq(path: String) =>
-      sender ! scalaCompiler.askPackageByPath(path)
+      sender ! (scalaCompiler.map { cc =>
+        cc.askPackageByPath(path)
+      }).getOrElse(VoidResponse)
+    case TypeAtPointReq(file: File, range: OffsetRange) if FileUtils.isJava(file) =>
+      javaCompiler.askTypeAtPoint(SourceFileInfo(file, None, None), range.from) pipeTo sender
     case TypeAtPointReq(file: File, range: OffsetRange) =>
-      val p = pos(file, range)
-      scalaCompiler.askLoadedTyped(p.source)
-      sender ! scalaCompiler.askTypeInfoAt(p)
+      sender ! (scalaCompiler.map { cc =>
+        val p = pos(cc, file, range)
+        cc.askLoadedTyped(p.source)
+        cc.askTypeInfoAt(p)
+      }).getOrElse(VoidResponse)
     case TypeByIdReq(id: Int) =>
-      sender ! scalaCompiler.askTypeInfoById(id)
+      sender ! (scalaCompiler.map { cc =>
+        cc.askTypeInfoById(id)
+      }).getOrElse(VoidResponse)
     case TypeByNameReq(name: String) =>
-      sender ! scalaCompiler.askTypeInfoByName(name)
+      sender ! (scalaCompiler.map { cc =>
+        cc.askTypeInfoByName(name)
+      }).getOrElse(VoidResponse)
     case TypeByNameAtPointReq(name: String, file: File, range: OffsetRange) =>
-      val p = pos(file, range)
-      scalaCompiler.askLoadedTyped(p.source)
-      sender ! scalaCompiler.askTypeInfoByNameAt(name, p)
+      sender ! (scalaCompiler.map { cc =>
+        val p = pos(cc, file, range)
+        cc.askLoadedTyped(p.source)
+        cc.askTypeInfoByNameAt(name, p)
+      }).getOrElse(VoidResponse)
     case CallCompletionReq(id: Int) =>
-      sender ! scalaCompiler.askCallCompletionInfoById(id)
+      sender ! (scalaCompiler.map { cc =>
+        cc.askCallCompletionInfoById(id)
+      }).getOrElse(VoidResponse)
+    case SymbolDesignationsReq(f, start, end, tpes) if FileUtils.isJava(f) =>
+      sender ! SymbolDesignations(f, List.empty)
     case SymbolDesignationsReq(f, start, end, tpes) =>
-      if (!FileUtils.isScalaSourceFile(f)) {
-        sender ! SymbolDesignations(f, List.empty)
-      } else {
-        val sf = createSourceFile(f)
+      sender ! (scalaCompiler.map { cc =>
+        val sf = createSourceFile(cc, f)
         if (tpes.nonEmpty) {
           val clampedEnd = math.max(end, start)
           val pos = new RangePosition(sf, start, start, clampedEnd)
-          scalaCompiler.askLoadedTyped(pos.source)
-          val syms = scalaCompiler.askSymbolDesignationsInRegion(pos, tpes)
-          sender ! syms
+          cc.askLoadedTyped(pos.source)
+          cc.askSymbolDesignationsInRegion(pos, tpes)
         } else {
-          sender ! SymbolDesignations(File(sf.path), List.empty)
+          SymbolDesignations(File(sf.path), List.empty)
         }
-      }
-
+      }).getOrElse(VoidResponse)
     case ImplicitInfoReq(file: File, range: OffsetRange) =>
-      val p = pos(file, range)
-      scalaCompiler.askLoadedTyped(p.source)
-      sender() ! scalaCompiler.askImplicitInfoInRegion(p)
-
+      sender() ! (scalaCompiler.map { cc =>
+        val p = pos(cc, file, range)
+        cc.askLoadedTyped(p.source)
+        cc.askImplicitInfoInRegion(p)
+      }).getOrElse(VoidResponse)
     case ExpandSelectionReq(file, start: Int, stop: Int) =>
       sender ! handleExpandselection(file, start, stop)
     case FormatSourceReq(files: List[File]) =>
-      handleFormatFiles(files)
-      sender ! VoidResponse
+      sender ! (scalaCompiler.map { cc =>
+        handleFormatFiles(cc, files)
+        VoidResponse
+      }).getOrElse(VoidResponse)
     case FormatOneSourceReq(fileInfo: SourceFileInfo) =>
-      sender ! StringResponse(handleFormatFile(fileInfo))
-
+      sender ! (scalaCompiler.map { cc =>
+        StringResponse(handleFormatFile(cc, fileInfo))
+      }).getOrElse(VoidResponse)
   }
 
   def handleReloadFiles(files: List[SourceFileInfo]): RpcResponse = {
@@ -272,31 +361,36 @@ class Analyzer(
       )
 
       if (scalas.nonEmpty) {
-        val sourceFiles = scalas.map(createSourceFile)
-        scalaCompiler.askReloadFiles(sourceFiles)
-        scalaCompiler.askNotifyWhenReady()
+        for (cc <- scalaCompiler) {
+          val sourceFiles = scalas.map { f => createSourceFile(cc, f) }
+          cc.askReloadFiles(sourceFiles)
+          cc.askNotifyWhenReady()
+        }
+      }
+      if (javas.nonEmpty) {
+        javaCompiler.askTypecheckFiles(javas)
       }
       VoidResponse
     }
   }
 
-  def pos(file: File, range: OffsetRange): OffsetPosition = {
-    val f = scalaCompiler.createSourceFile(file.canon.getPath)
+  def pos(cc: RichCompilerControl, file: File, range: OffsetRange): OffsetPosition = {
+    val f = cc.createSourceFile(file.canon.getPath)
     if (range.from == range.to) new OffsetPosition(f, range.from)
     else new RangePosition(f, range.from, range.from, range.to)
   }
 
-  def pos(file: File, offset: Int): OffsetPosition = {
-    val f = scalaCompiler.createSourceFile(file.canon.getPath)
+  def pos(cc: RichCompilerControl, file: File, offset: Int): OffsetPosition = {
+    val f = cc.createSourceFile(file.canon.getPath)
     new OffsetPosition(f, offset)
   }
 
-  def createSourceFile(file: File): SourceFile = {
-    scalaCompiler.createSourceFile(file.canon.getPath)
+  def createSourceFile(cc: RichCompilerControl, file: File): SourceFile = {
+    cc.createSourceFile(file.canon.getPath)
   }
 
-  def createSourceFile(file: SourceFileInfo): SourceFile = {
-    scalaCompiler.createSourceFile(file)
+  def createSourceFile(cc: RichCompilerControl, file: SourceFileInfo): SourceFile = {
+    cc.createSourceFile(file)
   }
 
 }
