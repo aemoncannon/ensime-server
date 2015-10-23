@@ -187,8 +187,6 @@ case class SourceFileInfo(
 ) {
   // keep the log file sane for unsaved files
   override def toString = s"SourceFileInfo($file,${contents.map(_ => "...")},$contentsIn)"
-  def isJava = file.getName().endsWith(".java")
-  def isScala = file.getName().endsWith(".scala")
 }
 
 sealed trait PatchOp {

@@ -229,8 +229,8 @@ class Analyzer(
       sender ! scalaCompiler.map(handleRefactorExec(_, req)).getOrElse(VoidResponse)
     case req: CancelRefactorReq =>
       sender ! handleRefactorCancel(req)
-    case CompletionsReq(fileInfo, point, maxResults, caseSens, reload) if fileInfo.isJava =>
-      javaCompiler.askCompletionsAtPoint(fileInfo, point, maxResults, caseSens) pipeTo sender
+    case CompletionsReq(f, point, maxResults, caseSens, reload) if FileUtils.isJava(f.file) =>
+      javaCompiler.askCompletionsAtPoint(f, point, maxResults, caseSens) pipeTo sender
     case CompletionsReq(fileInfo, point, maxResults, caseSens, reload) =>
       sender ! (scalaCompiler.map { cc =>
         val sourcefile = createSourceFile(cc, fileInfo)

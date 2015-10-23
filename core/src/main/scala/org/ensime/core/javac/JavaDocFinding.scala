@@ -110,9 +110,8 @@ trait JavaDocFinding {
     val types = info.getTypes()
     val args = m.getArguments
     val params = c.getParameters
-    var i = 0
     val result = new Array[Int](args.length)
-    while (i < args.length) {
+    for (i <- 0 to args.length) {
       val param = Option(params.get(i).asType);
       val arg = typeMirror(info, args.get(i))
       result(i) = (param, arg) match {
@@ -121,7 +120,6 @@ trait JavaDocFinding {
         case (Some(p: ReferenceType), Some(a: ReferenceType)) if types.isSubtype(a, p) => 1
         case _ => Int.MaxValue
       }
-      i += 1
     }
     (c, result)
   }

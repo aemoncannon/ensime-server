@@ -23,18 +23,18 @@ trait JavaCompletion { self: JavaCompiler =>
 
     val preceding = s.slice(Math.max(0, offset - 100), offset)
 
-    System.err.println("PRECEDING: " + preceding)
+    log.info("PRECEDING: " + preceding)
 
     val defaultPrefix = JavaIdentRegexp.findFirstMatchIn(preceding) match {
       case Some(m) => m.group(1)
       case _ => ""
     }
 
-    System.err.println("PREFIX: " + defaultPrefix)
+    log.info("PREFIX: " + defaultPrefix)
 
     val constructing = ConstructingRegexp.findFirstMatchIn(preceding).isDefined
 
-    System.err.println("CONSTRUCTING: " + constructing)
+    log.info("CONSTRUCTING: " + constructing)
 
     val indexAfterTarget = offset - defaultPrefix.length - 1
 
@@ -182,7 +182,7 @@ trait JavaCompletion { self: JavaCompiler =>
           }
         }
         case e => {
-          System.err.println("Unrecognized type element " + e)
+          log.warn("Unrecognized type element " + e)
           List()
         }
       }

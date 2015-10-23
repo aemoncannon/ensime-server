@@ -1,7 +1,7 @@
 package org.ensime.core.javac
 
 import akka.actor.ActorRef
-import akka.event.LoggingAdapter
+import akka.event.slf4j.SLF4JLogging
 import com.sun.source.tree.CompilationUnitTree
 import com.sun.source.util.JavacTask
 import com.sun.source.tree.Scope
@@ -16,7 +16,7 @@ import javax.tools._
 import org.ensime.api._
 import org.ensime.core.DocSigPair
 import org.ensime.util.ReportHandler
-import org.ensime.util.{ FileUtils, ReportHandler }
+import org.ensime.util.file._
 import scala.collection.JavaConversions._
 import scala.concurrent.Future
 import scala.reflect.internal.util.{ BatchSourceFile, RangePosition, SourceFile }
@@ -31,7 +31,7 @@ class JavaCompiler(
     val charset: Charset,
     val indexer: ActorRef,
     val reportHandler: ReportHandler
-) extends JavaDocFinding with JavaCompletion {
+) extends JavaDocFinding with JavaCompletion with SLF4JLogging {
 
   import scala.concurrent.ExecutionContext.Implicits.{ global => exe }
 
@@ -101,7 +101,7 @@ class JavaCompiler(
     val t = System.currentTimeMillis()
     task.parse()
     task.analyze()
-    System.err.println("Parsed and analyzed: " + (System.currentTimeMillis() - t) + "ms")
+    log.info("Parsed and analyzed: " + (System.currentTimeMillis() - t) + "ms")
   }
 
   private def typecheckForUnits(files: Iterable[JavaFileObject]): Vector[CompilationInfo] = {
@@ -111,7 +111,7 @@ class JavaCompiler(
     val t = System.currentTimeMillis()
     val units = task.parse().map(new CompilationInfo(task, _)).toVector
     task.analyze()
-    System.err.println("Parsed and analyzed for trees: " + (System.currentTimeMillis() - t) + "ms")
+    log.info("Parsed and analyzed for trees: " + (System.currentTimeMillis() - t) + "ms")
     units
   }
 
@@ -122,35 +122,21 @@ class JavaCompiler(
 
   private class JavaObjectFromFile(val f: File)
       extends SimpleJavaFileObject(f.toURI, JavaFileObject.Kind.SOURCE) {
-    override def getCharContent(ignoreEncodingErrors: Boolean): CharSequence = {
-      FileUtils.readFile(f, charset) match {
-        case Right(contentStr) => contentStr
-        case Left(e) => throw e
-      }
-    }
+    override def getCharContent(ignoreEncodingErrors: Boolean): CharSequence = f.readString
     override def openInputStream(): InputStream = new FileInputStream(f)
   }
 
   private def getJavaFileObject(sf: SourceFileInfo): JavaFileObject = sf match {
     case SourceFileInfo(f, None, None) => new JavaObjectFromFile(f)
     case SourceFileInfo(f, Some(contents), None) => new JavaObjectWithContents(f, contents)
-    case SourceFileInfo(f, None, Some(contentsIn)) => {
-      val contents = FileUtils.readFile(contentsIn, charset) match {
-        case Right(contentStr) => contentStr
-        case Left(e) => throw e
-      }
-      new JavaObjectWithContents(f, contents)
-    }
+    case SourceFileInfo(f, None, Some(contentsIn)) => new JavaObjectWithContents(f, f.readString)
   }
 
-  private class JavaDiagnosticListener extends DiagnosticListener[Object] with ReportHandler {
-    def report(diag: Diagnostic[_ <: Object]): Unit = {
+  private class JavaDiagnosticListener extends DiagnosticListener[JavaFileObject] with ReportHandler {
+    def report(diag: Diagnostic[_ <: JavaFileObject]): Unit = {
       reportHandler.reportJavaNotes(List(
         Note(
-          diag.getSource() match {
-            case jfo: JavaFileObject => jfo.getName()
-            case _ => "NA"
-          },
+          diag.getSource().getName(),
           diag.getMessage(Locale.ENGLISH),
           diag.getKind() match {
             case Diagnostic.Kind.ERROR => NoteError
@@ -170,8 +156,8 @@ class JavaCompiler(
     }
   }
 
-  private class SilencedDiagnosticListener extends DiagnosticListener[Object] with ReportHandler {
-    def report(diag: Diagnostic[_ <: Object]): Unit = {}
+  private class SilencedDiagnosticListener extends DiagnosticListener[JavaFileObject] with ReportHandler {
+    def report(diag: Diagnostic[_ <: JavaFileObject]): Unit = {}
   }
 
 }
