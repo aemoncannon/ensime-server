@@ -111,7 +111,7 @@ trait JavaDocFinding {
     val args = m.getArguments
     val params = c.getParameters
     val result = new Array[Int](args.length)
-    for (i <- 0 to args.length) {
+    for (i <- 0 to (args.length - 1)) {
       val param = Option(params.get(i).asType);
       val arg = typeMirror(info, args.get(i))
       result(i) = (param, arg) match {

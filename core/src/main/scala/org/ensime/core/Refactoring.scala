@@ -99,7 +99,7 @@ trait RefactoringHandler { self: Analyzer =>
     }
   }
 
-  def handleFormatFiles(cc: RichCompilerControl, files: List[File]): Unit = {
+  def handleFormatFiles(files: List[File]): Unit = {
     val cs = charset
     val changeList = files.map { f =>
       FileUtils.readFile(f, cs) match {
@@ -112,10 +112,8 @@ trait RefactoringHandler { self: Analyzer =>
     FileUtils.writeChanges(changeList, cs)
   }
 
-  def handleFormatFile(cc: RichCompilerControl, fileInfo: SourceFileInfo): String = {
-    val sourceFile = createSourceFile(cc, fileInfo)
-    val contents = sourceFile.content.mkString
-    ScalaFormatter.format(contents, config.formattingPrefs)
+  def handleFormatFile(fileInfo: SourceFileInfo): String = {
+    ScalaFormatter.format(fileInfo.file.readString, config.formattingPrefs)
   }
 
 }

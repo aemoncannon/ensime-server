@@ -65,6 +65,7 @@ class JavaCompilerSpec extends FlatSpec with Matchers
       "      System.out.println(fo@9@ + bar);",
       "      System.out.println(maxV@10@);",
       "      System.out.println(MAX_@11@);",
+      "      System.out.println(new Inte@12@);",
       "    }",
       "  }",
       "}") { (sf, offset, label, cc) =>
@@ -83,6 +84,7 @@ class JavaCompilerSpec extends FlatSpec with Matchers
           case "9" => assert(info.completions.exists(_.name == "foo"))
           case "10" => assert(info.completions.exists(_.name == "maxValue"))
           case "11" => assert(info.completions.exists(_.name == "MAX_VALUE"))
+          case "12" => assert(info.completions.exists(_.name == "Integer"))
         }
       }
   }

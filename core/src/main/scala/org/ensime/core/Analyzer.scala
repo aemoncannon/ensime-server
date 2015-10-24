@@ -340,12 +340,12 @@ class Analyzer(
       sender ! handleExpandselection(file, start, stop)
     case FormatSourceReq(files: List[File]) =>
       sender ! (scalaCompiler.map { cc =>
-        handleFormatFiles(cc, files)
+        handleFormatFiles(files)
         VoidResponse
       }).getOrElse(VoidResponse)
     case FormatOneSourceReq(fileInfo: SourceFileInfo) =>
       sender ! (scalaCompiler.map { cc =>
-        StringResponse(handleFormatFile(cc, fileInfo))
+        StringResponse(handleFormatFile(fileInfo))
       }).getOrElse(VoidResponse)
   }
 
