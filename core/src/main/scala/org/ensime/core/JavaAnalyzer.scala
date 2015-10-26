@@ -30,6 +30,11 @@ class JavaAnalyzer(
         }
       }
     )
+
+    // legacy clients expect to see AnalyzerReady and a
+    // FullTypeCheckCompleteEvent on connection.
+    broadcaster ! Broadcaster.Persist(AnalyzerReadyEvent)
+    broadcaster ! Broadcaster.Persist(FullTypeCheckCompleteEvent)
   }
 
   override def postStop(): Unit = {
