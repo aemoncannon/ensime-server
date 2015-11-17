@@ -117,13 +117,13 @@ class Project(
     // HACK: to expedite initial dev, Java requests use the Scala API
     case m @ TypecheckFileReq(sfi) if sfi.file.isJava => javac forward m
     case m @ CompletionsReq(sfi, _, _, _, _) if sfi.file.isJava => javac forward m
-    case m @ DocUriAtPointReq(file, _) if file.isJava => javac forward m
-    case m @ TypeAtPointReq(file, _) if file.isJava => javac forward m
-    case m @ SymbolDesignationsReq(file, _, _, _) if file.isJava => javac forward m
+    case m @ DocUriAtPointReq(sfi, _) if sfi.file.isJava => javac forward m
+    case m @ TypeAtPointReq(sfi, _) if sfi.file.isJava => javac forward m
+    case m @ SymbolDesignationsReq(sfi, _, _, _) if sfi.file.isJava => javac forward m
 
     // mixed mode query
     case TypecheckFilesReq(files) =>
-      val (javas, scalas) = files.partition(_.isJava)
+      val (javas, scalas) = files.partition(_.file.isJava)
       if (javas.nonEmpty) javac forward TypecheckFilesReq(javas)
       if (scalas.nonEmpty) scalac forward TypecheckFilesReq(scalas)
 

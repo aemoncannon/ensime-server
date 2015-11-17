@@ -43,25 +43,25 @@ class JavaAnalyzer(
   // TODO: create a sealed family of requests / responses just for Java usage
   override def receive = {
     case TypecheckFileReq(sfi) =>
-      javaCompiler.askTypecheckFiles(SourceFileInfo(sfi.file) :: Nil)
+      javaCompiler.askTypecheckFiles(sfi :: Nil)
       sender() ! VoidResponse
 
     case TypecheckFilesReq(files) =>
-      javaCompiler.askTypecheckFiles(files.map(SourceFileInfo(_)))
+      javaCompiler.askTypecheckFiles(files)
       sender() ! VoidResponse
 
     case CompletionsReq(f, point, maxResults, caseSens, _) =>
       sender() ! javaCompiler.askCompletionsAtPoint(f, point, maxResults, caseSens)
 
     case DocUriAtPointReq(file, range) =>
-      sender() ! javaCompiler.askDocSignatureAtPoint(SourceFileInfo(file, None, None), range.from)
+      sender() ! javaCompiler.askDocSignatureAtPoint(file, range.from)
 
     case TypeAtPointReq(file, range) =>
-      sender() ! javaCompiler.askTypeAtPoint(SourceFileInfo(file, None, None), range.from)
+      sender() ! javaCompiler.askTypeAtPoint(file, range.from)
 
     case SymbolDesignationsReq(f, start, end, tpes) =>
       // NOT IMPLEMENTED YET
-      sender ! SymbolDesignations(f, Nil)
+      sender ! SymbolDesignations(f.file, Nil)
   }
 
 }

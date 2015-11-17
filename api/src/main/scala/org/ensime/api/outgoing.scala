@@ -546,7 +546,7 @@ case class EnsimeImplementation(
 case class ConnectionInfo(
   pid: Option[Int] = None,
   implementation: EnsimeImplementation = EnsimeImplementation("ENSIME"),
-  version: String = "0.8.17"
+  version: String = "0.9.0"
 ) extends RpcResponse
 
 sealed trait ImplicitInfo

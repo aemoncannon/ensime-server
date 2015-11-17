@@ -34,7 +34,7 @@ sealed trait RpcAnalyserRequest extends RpcRequest
  * @param range in the file to inspect.
  */
 case class ImplicitInfoReq(
-  file: File,
+  file: SourceFileInfo,
   range: OffsetRange
 ) extends RpcAnalyserRequest
 
@@ -61,7 +61,7 @@ case object TypecheckAllReq extends RpcAnalyserRequest
 /**
  * Responds with a `VoidResponse`.
  */
-case class TypecheckFilesReq(files: List[File]) extends RpcAnalyserRequest
+case class TypecheckFilesReq(files: List[SourceFileInfo]) extends RpcAnalyserRequest
 
 /**
  * Responds with `VoidResponse`.
@@ -98,7 +98,7 @@ case class ImportSuggestionsReq(
  * Responds with `ERangePositions`.
  */
 case class UsesOfSymbolAtPointReq(
-  file: File,
+  file: SourceFileInfo,
   point: Int
 ) extends RpcAnalyserRequest // will probably become a search request
 
@@ -107,7 +107,7 @@ case class UsesOfSymbolAtPointReq(
  * or `FalseResponse`.
  */
 case class DocUriAtPointReq(
-  file: File,
+  file: SourceFileInfo,
   point: OffsetRange
 ) extends RpcAnalyserRequest
 
@@ -158,12 +158,12 @@ case class TypeByNameReq(name: String) extends RpcAnalyserRequest
 /**
  * Responds with `TypeInfo` if valid, or `FalseResponse`.
  */
-case class TypeByNameAtPointReq(name: String, file: File, range: OffsetRange) extends RpcAnalyserRequest
+case class TypeByNameAtPointReq(name: String, file: SourceFileInfo, range: OffsetRange) extends RpcAnalyserRequest
 
 /**
  * Responds with `TypeInfo` if valid, or `FalseResponse`.
  */
-case class TypeAtPointReq(file: File, range: OffsetRange) extends RpcAnalyserRequest
+case class TypeAtPointReq(file: SourceFileInfo, range: OffsetRange) extends RpcAnalyserRequest
 
 /**
  * Request detailed type information about the item at the given file
@@ -175,7 +175,7 @@ case class TypeAtPointReq(file: File, range: OffsetRange) extends RpcAnalyserReq
  * @param file source.
  * @param range in the file to inspect.
  */
-case class InspectTypeAtPointReq(file: File, range: OffsetRange) extends RpcAnalyserRequest
+case class InspectTypeAtPointReq(file: SourceFileInfo, range: OffsetRange) extends RpcAnalyserRequest
 
 /**
  * Request detailed type description by `typeId`.
@@ -199,7 +199,7 @@ case class InspectTypeByNameReq(name: String) extends RpcAnalyserRequest
 /**
  * Responds with a `SymbolInfo` if valid, or `FalseResponse`.
  */
-case class SymbolAtPointReq(file: File, point: Int) extends RpcAnalyserRequest
+case class SymbolAtPointReq(file: SourceFileInfo, point: Int) extends RpcAnalyserRequest
 
 /**
  * Request detailed symbol description by fully qualified symbol name.
@@ -253,7 +253,7 @@ case class CancelRefactorReq(procId: Int) extends RpcAnalyserRequest
  * @param requestedTypes semantic classes in which we are interested.
  */
 case class SymbolDesignationsReq(
-  file: File,
+  file: SourceFileInfo,
   start: Int,
   end: Int,
   requestedTypes: List[SourceSymbol]
@@ -261,6 +261,7 @@ case class SymbolDesignationsReq(
 
 /**
  * Responds with a `FileRange`.
+ * TODO - remove in favor of client-side solutions.
  */
 case class ExpandSelectionReq(file: File, start: Int, end: Int) extends RpcAnalyserRequest
 
