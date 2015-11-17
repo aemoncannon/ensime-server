@@ -256,18 +256,13 @@ class Analyzer(
   }
 
   def handleReloadFiles(files: List[SourceFileInfo]): RpcResponse = {
-    val missingFiles = files.filterNot(FileUtils.exists)
+    val (extant, missingFiles) = files.partition(FileUtils.exists)
     if (missingFiles.nonEmpty) {
       val missingFilePaths = missingFiles.map { f => "\"" + f.file + "\"" }.mkString(",")
       EnsimeServerError(s"file(s): $missingFilePaths do not exist")
     } else {
-
-      val (javas, scalas) = files.filter(_.file.exists).partition(
-        _.file.getName.endsWith(".java")
-      )
-
-      if (scalas.nonEmpty) {
-        val sourceFiles = scalas.map(createSourceFile)
+      if (extant.nonEmpty) {
+        val sourceFiles = extant.map(createSourceFile)
         scalaCompiler.askReloadFiles(sourceFiles)
         scalaCompiler.askNotifyWhenReady()
       }

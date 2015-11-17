@@ -41,6 +41,7 @@ import akka.pattern.Patterns
 import akka.util.Timeout
 import org.ensime.api._
 import org.ensime.util.Arrays
+import org.ensime.util.InMemorySourceFile
 
 import scala.collection.mutable
 import scala.concurrent.duration._
@@ -150,8 +151,8 @@ trait CompletionControl {
 
   private def spliceSource(s: SourceFile, start: Int, end: Int,
     replacement: String): SourceFile = {
-    new BatchSourceFile(
-      s.file,
+    new InMemorySourceFile(
+      s.file.path,
       Arrays.splice(s.content, start, end, replacement.toArray)
     )
   }
