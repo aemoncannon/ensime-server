@@ -14,4 +14,7 @@ public class Test2 {
         return c;
     }
 
+    static class Bar {
+        public Bar() {}
+    }
 }

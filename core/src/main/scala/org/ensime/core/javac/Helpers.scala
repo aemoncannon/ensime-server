@@ -1,11 +1,9 @@
 package org.ensime.core.javac
 
-import com.sun.source.tree.{ MemberSelectTree, MethodInvocationTree, Tree }
+import com.sun.source.tree.Tree
 import com.sun.source.util.TreePath
-import javax.lang.model.`type`.{ DeclaredType, PrimitiveType, ReferenceType, TypeKind, TypeMirror }
-import javax.lang.model.element.{ Element, ExecutableElement, TypeElement }
-import javax.lang.model.util.{ ElementFilter, Elements }
-import org.ensime.core.{ DocFqn, DocSig, DocSigPair }
+import javax.lang.model.`type`.{ DeclaredType, PrimitiveType, TypeKind, TypeMirror }
+import javax.lang.model.element.{ Element, TypeElement }
 
 trait Helpers {
 
@@ -51,5 +49,4 @@ trait Helpers {
       case _ => None
     }
   }
-
 }
